@@ -267,10 +267,12 @@ export default function AgriGemmaApp() {
   const [selectedLanguage, setSelectedLanguage] = useState(INDIAN_LANGUAGES[0]);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isTranslating, setIsTranslating] = useState(false);
   const [diagnosis, setDiagnosis] = useState<DiagnosisResponse | null>(null);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
+  const diagnosisCacheRef = useRef<Record<string, DiagnosisResponse>>({});
 
   // Weather State
   const [weather, setWeather] = useState<WeatherData | null>(null);
@@ -392,6 +394,7 @@ export default function AgriGemmaApp() {
       if (!res.ok) throw new Error("Diagnosis failed. Check image or connection.");
       const data: DiagnosisResponse = await res.json();
       setDiagnosis(data);
+      diagnosisCacheRef.current = { [selectedLanguage.name]: data };
 
       // LIVE CROWDSOURCING: If disease is detected, register it to the Outbreak Radar!
       if (!data.isHealthy && data.detectedCondition) {
@@ -580,6 +583,42 @@ export default function AgriGemmaApp() {
     }
   };
 
+  const handleLanguageChange = async (newLang: (typeof INDIAN_LANGUAGES)[0]) => {
+    stopAudio();
+    setSelectedLanguage(newLang);
+
+    if (!diagnosis) return;
+
+    // Check in-memory cache first for instant switch
+    if (diagnosisCacheRef.current[newLang.name]) {
+      setDiagnosis(diagnosisCacheRef.current[newLang.name]);
+      return;
+    }
+
+    // Call /api/translate to translate current diagnosis and audio summary
+    setIsTranslating(true);
+    try {
+      const res = await fetch("/api/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          diagnosis,
+          targetLanguage: newLang.name,
+        }),
+      });
+
+      if (res.ok) {
+        const translated: DiagnosisResponse = await res.json();
+        diagnosisCacheRef.current[newLang.name] = translated;
+        setDiagnosis(translated);
+      }
+    } catch (err) {
+      console.error("Failed to translate diagnosis:", err);
+    } finally {
+      setIsTranslating(false);
+    }
+  };
+
   const currentSuggestedQuestions =
     LOCALIZED_QUESTIONS[selectedLanguage.name] || LOCALIZED_QUESTIONS["English"];
 
@@ -609,7 +648,7 @@ export default function AgriGemmaApp() {
               value={selectedLanguage.code}
               onChange={(e) => {
                 const lang = INDIAN_LANGUAGES.find((l) => l.code === e.target.value);
-                if (lang) setSelectedLanguage(lang);
+                if (lang) handleLanguageChange(lang);
               }}
               className="bg-transparent text-white font-medium focus:outline-none cursor-pointer text-xs sm:text-sm"
             >
@@ -802,7 +841,16 @@ export default function AgriGemmaApp() {
               )}
 
               {diagnosis ? (
-                <div className="bg-white rounded-3xl shadow-sm border border-slate-200/80 overflow-hidden">
+                <div className="bg-white rounded-3xl shadow-sm border border-slate-200/80 overflow-hidden relative">
+                  {/* Real-time Translation Indicator */}
+                  {isTranslating && (
+                    <div className="bg-emerald-600 text-white text-xs font-bold px-4 py-2 flex items-center justify-center space-x-2 animate-pulse">
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-200" />
+                      <span>
+                        {selectedLanguage.label} में अनुवाद हो रहा है... (Translating diagnosis & audio)...
+                      </span>
+                    </div>
+                  )}
                   {/* Severity Banner */}
                   <div
                     className={`p-4 sm:p-5 border-b flex items-start justify-between ${diagnosis.isHealthy
