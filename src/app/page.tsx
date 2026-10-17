@@ -21,7 +21,10 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { DiagnosisResponse } from "@/types/diagonsis";
-import OutbreakRadar from "@/components/OutbreakRadar";
+import OutbreakRadar, {
+  INITIAL_OUTBREAK_DATA,
+  OutbreakIncident,
+} from "@/components/OutbreakRadar";
 
 // 9 Major Indian Agricultural Languages
 const INDIAN_LANGUAGES = [
@@ -63,7 +66,11 @@ const UI_STRINGS: Record<string, Record<string, string>> = {
     chatHeader: "Ask Follow-Up Questions",
     placeholder: "Ask about remedies, preparation, or safety...",
     waitingTitle: "Ready for Plant Inspection",
-    waitingDesc: "Capture a leaf photo or click one of the sample crops on the left to view instant diagnosis, organic remedies, and audio guidance.",
+    waitingDesc:
+      "Capture a leaf photo or click one of the sample crops on the left to view instant diagnosis, organic remedies, and audio guidance.",
+    liveContribution:
+      "📡 Your scan was logged to the Outbreak Radar! Nearby farmers will receive early alerts.",
+    viewOnRadar: "View on Radar →",
   },
   Hindi: {
     subtitle: "डिजिटल किसान मित्र (Krishi Co-Pilot)",
@@ -91,7 +98,11 @@ const UI_STRINGS: Record<string, Record<string, string>> = {
     chatHeader: "कृषि सलाहकार से और सवाल पूछें",
     placeholder: "दवा या सुरक्षा के बारे में सवाल पूछें...",
     waitingTitle: "फसल जांच के लिए तैयार",
-    waitingDesc: "बाईं ओर से पत्ती की फोटो खींचें या किसी नमूना फसल पर क्लिक करें। तुरंत बीमारी की जांच व देसी उपचार देखें।",
+    waitingDesc:
+      "बाईं ओर से पत्ती की फोटो खींचें या किसी नमूना फसल पर क्लिक करें। तुरंत बीमारी की जांच व देसी उपचार देखें।",
+    liveContribution:
+      "📡 आपकी जांच प्रकोप रडार में दर्ज हो गई है! आस-पास के किसानों को तुरंत अलर्ट मिलेगा।",
+    viewOnRadar: "रडार पर देखें →",
   },
   Marathi: {
     subtitle: "डिजिटल शेतकरी मित्र (Krishi Co-Pilot)",
@@ -119,7 +130,11 @@ const UI_STRINGS: Record<string, Record<string, string>> = {
     chatHeader: "सल्लागाराला आणखी प्रश्न विचारा",
     placeholder: "औषध किंवा फवारणीबद्दल प्रश्न विचारा...",
     waitingTitle: "पिकांची तपासणी करण्यासाठी सज्ज",
-    waitingDesc: "डाव्या बाजूने पानाचा फोटो घ्या किंवा नमुना पिकावर क्लिक करा. तात्काळ रोग निदान व सेंद्रिय उपचार पहा.",
+    waitingDesc:
+      "डाव्या बाजूने पानाचा फोटो घ्या किंवा नमुना पिकावर क्लिक करा. तात्काळ रोग निदान व सेंद्रिय उपचार पहा.",
+    liveContribution:
+      "📡 तुमची नोंद रोग रडारमध्ये जोडली गेली आहे! परिसरातील शेतकऱ्यांना पूर्वसूचना मिळेल.",
+    viewOnRadar: "रडारवर पहा →",
   },
   Telugu: {
     subtitle: "డిజిటల్ రైతు మిత్ర (Krishi Co-Pilot)",
@@ -148,6 +163,8 @@ const UI_STRINGS: Record<string, Record<string, string>> = {
     placeholder: "నివారణ లేదా జాగ్రత్తల గురించి అడగండి...",
     waitingTitle: "పంట తనిఖీకి సిద్ధం",
     waitingDesc: "ఎడమవైపు నుండి ఆకు ఫోటో తీయండి లేదా నమూనా పంటపై క్లిక్ చేయండి.",
+    liveContribution: "📡 మీ నివేదిక రాడార్‌లో నమోదైంది! పక్క రైతులకు హెచ్చరిక అందుతుంది.",
+    viewOnRadar: "రాడార్‌లో చూడండి →",
   },
   Tamil: {
     subtitle: "டிஜிட்டல் உழவன் தோழன் (Krishi Co-Pilot)",
@@ -176,6 +193,8 @@ const UI_STRINGS: Record<string, Record<string, string>> = {
     placeholder: "இயற்கை உரம் அல்லது பாதுகாப்பு பற்றி கேட்கவும்...",
     waitingTitle: "பயிர் பரிசோதனைக்கு தயார்",
     waitingDesc: "இடதுபுறத்தில் இலை புகைப்படத்தை எடுக்கவும் அல்லது மாதிரி பயிரை தேர்வு செய்யவும்.",
+    liveContribution: "📡 உங்கள் பதிவு ரேடாரில் சேர்க்கப்பட்டது! மற்ற விவசாயிகளுக்கு எச்சரிக்கை கிடைக்கும்.",
+    viewOnRadar: "ரேடாரில் பார்க்க →",
   },
 };
 
@@ -253,10 +272,19 @@ export default function AgriGemmaApp() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
 
+  // Weather State
   const [weather, setWeather] = useState<WeatherData | null>(null);
+
+  // Chat State
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [inputQuestion, setInputQuestion] = useState("");
   const [sendingChat, setSendingChat] = useState(false);
+
+  // Live Outbreak Incidents State (Starts with seed + grows with scans)
+  const [outbreakIncidents, setOutbreakIncidents] = useState<OutbreakIncident[]>(
+    INITIAL_OUTBREAK_DATA
+  );
+  const [liveContributionAlert, setLiveContributionAlert] = useState<string | null>(null);
 
   const t = (key: string): string => {
     return (
@@ -347,6 +375,7 @@ export default function AgriGemmaApp() {
     setLoading(true);
     setDiagnosis(null);
     setChatMessages([]);
+    setLiveContributionAlert(null);
     stopAudio();
 
     try {
@@ -363,6 +392,74 @@ export default function AgriGemmaApp() {
       if (!res.ok) throw new Error("Diagnosis failed. Check image or connection.");
       const data: DiagnosisResponse = await res.json();
       setDiagnosis(data);
+
+      // LIVE CROWDSOURCING: If disease is detected, register it to the Outbreak Radar!
+      if (!data.isHealthy && data.detectedCondition) {
+        const liveIncident: OutbreakIncident = {
+          id: `live-${Date.now()}`,
+          severity: data.severity === "Severe" ? "Critical" : "Warning",
+          reportsCount: 1,
+          windSpreadRisk: "Moderate",
+          cropKey: data.crop || "Crop",
+          isLiveScan: true,
+          translations: {
+            English: {
+              crop: data.crop || "Crop",
+              region: "Live Field Node (Your Scan)",
+              disease: data.detectedCondition,
+              action:
+                data.organicRemedies?.[0] ||
+                "Apply recommended organic remedy immediately.",
+              audio:
+                data.audioSummary ||
+                `New active case of ${data.detectedCondition} reported just now.`,
+            },
+            Hindi: {
+              crop: data.crop || "फसल",
+              region: "स्थानीय खेत (लाइव किसान रिपोर्ट)",
+              disease: data.detectedCondition,
+              action:
+                data.organicRemedies?.[0] ||
+                "तुरंत अनुशंसित जैविक उपचार का छिड़काव करें।",
+              audio:
+                data.audioSummary ||
+                `अभी-अभी ${data.detectedCondition} का नया मामला दर्ज किया गया।`,
+            },
+            Marathi: {
+              crop: data.crop || "पीक",
+              region: "स्थानिक शेतकरी केंद्र (थेट नोंद)",
+              disease: data.detectedCondition,
+              action:
+                data.organicRemedies?.[0] ||
+                "शिफारस केलेले सेंद्रिय उपाय तातडीने करा.",
+              audio:
+                data.audioSummary ||
+                `आताच ${data.detectedCondition} रोगाची नवीन नोंद झाली आहे.`,
+            },
+            Telugu: {
+              crop: data.crop || "పంట",
+              region: "స్థానిక క్షేత్రం (లైవ్ రిపోర్ట్)",
+              disease: data.detectedCondition,
+              action:
+                data.organicRemedies?.[0] ||
+                "సిఫార్సు చేసిన నివారణ చర్యలు వెంటనే చేపట్టండి.",
+              audio: data.audioSummary || "కొత్త తెగులు కేసు నమోదైంది.",
+            },
+            Tamil: {
+              crop: data.crop || "பயிர்",
+              region: "உள்ளூர் வயல் (நேரடிப் பதிவு)",
+              disease: data.detectedCondition,
+              action:
+                data.organicRemedies?.[0] ||
+                "பரிந்துரைக்கப்பட்ட இயற்கை தீர்வை உடனே தெளிக்கவும்.",
+              audio: data.audioSummary || "புதிய நோய் பாதிப்பு பதிவாகியுள்ளது.",
+            },
+          },
+        };
+
+        setOutbreakIncidents((prev) => [liveIncident, ...prev]);
+        setLiveContributionAlert(t("liveContribution"));
+      }
     } catch (err: any) {
       alert(err.message || "Failed to analyze image");
     } finally {
@@ -387,6 +484,7 @@ export default function AgriGemmaApp() {
     setPreviewImage(url);
     setDiagnosis(null);
     setChatMessages([]);
+    setLiveContributionAlert(null);
     stopAudio();
 
     try {
@@ -487,7 +585,7 @@ export default function AgriGemmaApp() {
 
   return (
     <main className="min-h-screen bg-slate-100/70 text-slate-900 pb-20 font-sans">
-      {/* Header - Adapts from 360px mobile to 4K desktop */}
+      {/* Top Header */}
       <header className="bg-emerald-700 text-white shadow-md sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
           <div className="flex items-center space-x-2.5">
@@ -504,7 +602,7 @@ export default function AgriGemmaApp() {
             </div>
           </div>
 
-          {/* Language Selector */}
+          {/* Regional Language Picker */}
           <div className="flex items-center space-x-1.5 bg-emerald-800/90 rounded-xl px-2.5 py-1.5 text-xs sm:text-sm border border-emerald-600/70 shadow-sm">
             <Languages className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-300" />
             <select
@@ -530,22 +628,20 @@ export default function AgriGemmaApp() {
         <div className="max-w-md mx-auto grid grid-cols-2 gap-2 bg-slate-200/90 p-1.5 rounded-2xl shadow-inner">
           <button
             onClick={() => setActiveTab("diagnose")}
-            className={`py-2 px-3 text-xs sm:text-sm font-bold rounded-xl transition flex items-center justify-center space-x-1.5 ${
-              activeTab === "diagnose"
+            className={`py-2 px-3 text-xs sm:text-sm font-bold rounded-xl transition flex items-center justify-center space-x-1.5 ${activeTab === "diagnose"
                 ? "bg-white text-emerald-800 shadow-sm"
                 : "text-slate-600 hover:text-slate-900"
-            }`}
+              }`}
           >
             <Leaf className="w-4 h-4" />
             <span>{t("tabDoctor")}</span>
           </button>
           <button
             onClick={() => setActiveTab("radar")}
-            className={`py-2 px-3 text-xs sm:text-sm font-bold rounded-xl transition flex items-center justify-center space-x-1.5 ${
-              activeTab === "radar"
+            className={`py-2 px-3 text-xs sm:text-sm font-bold rounded-xl transition flex items-center justify-center space-x-1.5 ${activeTab === "radar"
                 ? "bg-rose-600 text-white shadow-sm"
                 : "text-slate-600 hover:text-slate-900"
-            }`}
+              }`}
           >
             <Radio className="w-4 h-4 animate-pulse" />
             <span>{t("tabRadar")}</span>
@@ -553,25 +649,29 @@ export default function AgriGemmaApp() {
         </div>
       </div>
 
-      {/* Main Responsive Canvas */}
+      {/* Main Content Area */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-5">
         {activeTab === "radar" ? (
-          <OutbreakRadar onSpeak={speakText} selectedLanguage={selectedLanguage} />
+          <OutbreakRadar
+            onSpeak={speakText}
+            selectedLanguage={selectedLanguage}
+            incidents={outbreakIncidents}
+            onAddIncident={(newIncident) =>
+              setOutbreakIncidents((prev) => [newIncident, ...prev])
+            }
+          />
         ) : (
-          /* Responsive 2-Column Desktop Grid / 1-Column Mobile Stack */
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            {/* Left Column (lg:col-span-5): Weather, Camera Upload & Demo Samples */}
+            {/* Left Column: Weather, Camera Upload & Demo Samples */}
             <div className="lg:col-span-5 space-y-4 lg:sticky lg:top-20">
-              {/* Weather Spray Advisory Banner */}
               {weather && (
                 <div
-                  className={`rounded-2xl p-4 border flex items-center justify-between shadow-sm transition ${
-                    weather.verdict === "Optimal"
+                  className={`rounded-2xl p-4 border flex items-center justify-between shadow-sm transition ${weather.verdict === "Optimal"
                       ? "bg-emerald-50 border-emerald-200 text-emerald-950"
                       : weather.verdict === "Caution"
-                      ? "bg-amber-50 border-amber-200 text-amber-950"
-                      : "bg-rose-50 border-rose-200 text-rose-950"
-                  }`}
+                        ? "bg-amber-50 border-amber-200 text-amber-950"
+                        : "bg-rose-50 border-rose-200 text-rose-950"
+                    }`}
                 >
                   <div className="flex items-start space-x-3">
                     <div className="mt-0.5">
@@ -589,8 +689,8 @@ export default function AgriGemmaApp() {
                           {weather.verdict === "Optimal"
                             ? t("sprayOptimal")
                             : weather.verdict === "Caution"
-                            ? t("sprayCaution")
-                            : t("sprayAvoid")}
+                              ? t("sprayCaution")
+                              : t("sprayAvoid")}
                         </span>
                         <span className="text-xs font-semibold opacity-80">
                           {weather.temperature}°C • {weather.humidity}% {t("humidity")}
@@ -683,30 +783,44 @@ export default function AgriGemmaApp() {
               </div>
             </div>
 
-            {/* Right Column (lg:col-span-7): Diagnosis Card & Chat */}
+            {/* Right Column: Live Alert, Diagnosis Card & Chat */}
             <div className="lg:col-span-7 space-y-4">
+              {/* LIVE CROWDSOURCING ALERT BANNER */}
+              {liveContributionAlert && (
+                <div className="bg-emerald-100 border border-emerald-300 text-emerald-950 px-4 py-3 rounded-2xl text-xs sm:text-sm font-bold flex items-center justify-between shadow-2xs animate-fadeIn">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-base">📡</span>
+                    <span>{liveContributionAlert}</span>
+                  </div>
+                  <button
+                    onClick={() => setActiveTab("radar")}
+                    className="underline hover:text-emerald-800 text-xs ml-3 font-extrabold shrink-0"
+                  >
+                    {t("viewOnRadar")}
+                  </button>
+                </div>
+              )}
+
               {diagnosis ? (
                 <div className="bg-white rounded-3xl shadow-sm border border-slate-200/80 overflow-hidden">
                   {/* Severity Banner */}
                   <div
-                    className={`p-4 sm:p-5 border-b flex items-start justify-between ${
-                      diagnosis.isHealthy
+                    className={`p-4 sm:p-5 border-b flex items-start justify-between ${diagnosis.isHealthy
                         ? "bg-emerald-50/90 border-emerald-200 text-emerald-900"
                         : diagnosis.severity === "Severe"
-                        ? "bg-rose-50/90 border-rose-200 text-rose-900"
-                        : "bg-amber-50/90 border-amber-200 text-amber-900"
-                    }`}
+                          ? "bg-rose-50/90 border-rose-200 text-rose-900"
+                          : "bg-amber-50/90 border-amber-200 text-amber-900"
+                      }`}
                   >
                     <div className="flex items-start sm:items-center space-x-3.5">
                       {diagnosis.isHealthy ? (
                         <CheckCircle2 className="w-7 h-7 text-emerald-600 shrink-0 mt-0.5 sm:mt-0" />
                       ) : (
                         <AlertTriangle
-                          className={`w-7 h-7 shrink-0 mt-0.5 sm:mt-0 ${
-                            diagnosis.severity === "Severe"
+                          className={`w-7 h-7 shrink-0 mt-0.5 sm:mt-0 ${diagnosis.severity === "Severe"
                               ? "text-rose-600"
                               : "text-amber-600"
-                          }`}
+                            }`}
                         />
                       )}
                       <div>
@@ -724,11 +838,10 @@ export default function AgriGemmaApp() {
                     {/* Audio Listen Button */}
                     <button
                       onClick={() => speakText(diagnosis.audioSummary)}
-                      className={`shrink-0 flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold shadow-xs transition active:scale-95 ${
-                        isSpeaking
+                      className={`shrink-0 flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold shadow-xs transition active:scale-95 ${isSpeaking
                           ? "bg-rose-600 text-white animate-pulse"
                           : "bg-emerald-700 hover:bg-emerald-800 text-white"
-                      }`}
+                        }`}
                       title={t("listen")}
                     >
                       {isSpeaking ? (
@@ -833,11 +946,10 @@ export default function AgriGemmaApp() {
                         {chatMessages.map((msg, idx) => (
                           <div
                             key={idx}
-                            className={`p-3.5 rounded-2xl text-xs sm:text-sm ${
-                              msg.role === "user"
+                            className={`p-3.5 rounded-2xl text-xs sm:text-sm ${msg.role === "user"
                                 ? "bg-emerald-600 text-white ml-8 rounded-br-none"
                                 : "bg-white border border-slate-200 text-slate-800 mr-8 rounded-bl-none shadow-xs flex items-start justify-between"
-                            }`}
+                              }`}
                           >
                             <p className="leading-relaxed">{msg.text}</p>
                             {msg.role === "model" && (
@@ -880,7 +992,7 @@ export default function AgriGemmaApp() {
                   </div>
                 </div>
               ) : (
-                /* Empty State on Desktop when no scan is run yet */
+                /* Empty Waiting State on Desktop */
                 <div className="bg-white rounded-3xl border border-dashed border-slate-300 p-10 text-center flex flex-col items-center justify-center min-h-[380px]">
                   <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mb-4 shadow-inner">
                     <Leaf className="w-8 h-8" />
