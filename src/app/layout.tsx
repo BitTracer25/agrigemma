@@ -15,9 +15,14 @@ const geistMono = Geist_Mono({
 export const metadata = {
   title: "AgriGemma — On-Field Crop Disease & Pest Diagnostic Tool",
   description:
-    "Empowering smallholder farmers with instant multimodal crop disease diagnostics and low-cost organic remedies powered by Gemma 4.",
+    "Multimodal AI on-field crop disease & pest diagnostic tool powered by Gemma 4 for smallholder farmers.",
   manifest: "/manifest.webmanifest",
+};
+
+export const viewport = {
   themeColor: "#047857",
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
