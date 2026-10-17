@@ -48,6 +48,9 @@ const RADAR_UI_STRINGS: Record<string, Record<string, string>> = {
     paddy: "Paddy",
     wheat: "Wheat",
     cotton: "Cotton",
+    sugarcane: "Sugarcane",
+    soybean: "Soybean",
+    noOutbreaks: "No active outbreaks reported for this crop.",
     activeOutbreaks: "Active Regional Outbreaks",
     farmerScans: "Farmer Reports",
     windRisk: "Wind Drift Risk",
@@ -94,6 +97,9 @@ const RADAR_UI_STRINGS: Record<string, Record<string, string>> = {
     paddy: "धान",
     wheat: "गेहूं",
     cotton: "कपास",
+    sugarcane: "गन्ना",
+    soybean: "सोयाबीन",
+    noOutbreaks: "इस फसल के लिए कोई सक्रिय प्रकोप दर्ज नहीं है।",
     activeOutbreaks: "सक्रिय प्रकोप क्षेत्र",
     farmerScans: "किसान रिपोर्ट",
     windRisk: "हवा से फैलाव का खतरा",
@@ -140,6 +146,9 @@ const RADAR_UI_STRINGS: Record<string, Record<string, string>> = {
     paddy: "भात",
     wheat: "गहू",
     cotton: "कापूस",
+    sugarcane: "ऊस",
+    soybean: "सोयाबीन",
+    noOutbreaks: "या पिकासाठी कोणताही सक्रिय प्रादुर्भाव आढळला नाही.",
     activeOutbreaks: "सक्रिय प्रादुर्भाव क्षेत्र",
     farmerScans: "शेतकरी नोंदी",
     windRisk: "वाऱ्याने प्रसाराचा धोका",
@@ -186,6 +195,9 @@ const RADAR_UI_STRINGS: Record<string, Record<string, string>> = {
     paddy: "వరి",
     wheat: "గోధుమ",
     cotton: "పత్తి",
+    sugarcane: "చెరకు",
+    soybean: "సోయాబీన్",
+    noOutbreaks: "ఈ పంటకు సంబంధించి ఎలాంటి తెగుళ్లు నమోదు కాలేదు.",
     activeOutbreaks: "తీవ్రమైన తెగులు ప్రాంతాలు",
     farmerScans: "రైతు నివేదికలు",
     windRisk: "గాలి ద్వారా వ్యాప్తి ముప్పు",
@@ -232,6 +244,9 @@ const RADAR_UI_STRINGS: Record<string, Record<string, string>> = {
     paddy: "நெல்",
     wheat: "கோதுமை",
     cotton: "பருத்தி",
+    sugarcane: "கரும்பு",
+    soybean: "சோயாபீன்",
+    noOutbreaks: "இப்பயிருக்கு எவ்வித நோய் பாதிப்பும் பதிவாகவில்லை.",
     activeOutbreaks: "பாதிக்கப்பட்ட பகுதிகள்",
     farmerScans: "விவசாயி பதிவுகள்",
     windRisk: "காற்றில் பரவும் அபாயம்",
@@ -596,17 +611,58 @@ export default function OutbreakRadar({
     );
   };
 
+  // Dynamically extract all unique crops present in the incidents
+  const availableCrops = React.useMemo(() => {
+    const cropSet = new Set<string>();
+    incidents.forEach((inc) => {
+      if (inc.cropKey && inc.cropKey.trim()) {
+        const raw = inc.cropKey.trim();
+        cropSet.add(raw.charAt(0).toUpperCase() + raw.slice(1));
+      }
+    });
+    return ["All", ...Array.from(cropSet)];
+  }, [incidents]);
+
   const filteredIncidents =
     selectedCrop === "All"
       ? incidents
-      : incidents.filter(
-          (i) =>
-            i.cropKey.toLowerCase().includes(selectedCrop.toLowerCase()) ||
-            selectedCrop.toLowerCase().includes(i.cropKey.toLowerCase())
-        );
+      : incidents.filter((i) => {
+          const incCrop = (i.cropKey || "").toLowerCase();
+          const targetCrop = selectedCrop.toLowerCase();
+          return (
+            incCrop === targetCrop ||
+            incCrop.includes(targetCrop) ||
+            targetCrop.includes(incCrop)
+          );
+        });
 
+  // Keep the active selection strictly synchronized with the filtered view
   const selectedIncident =
-    incidents.find((i) => i.id === selectedIncidentId) || incidents[0];
+    filteredIncidents.find((i) => i.id === selectedIncidentId) ||
+    filteredIncidents[0] ||
+    incidents[0];
+
+  const handleSelectCropFilter = (cropKey: string) => {
+    setSelectedCrop(cropKey);
+    if (cropKey === "All") {
+      if (incidents.length > 0) {
+        setSelectedIncidentId(incidents[0].id);
+      }
+    } else {
+      const match = incidents.find((i) => {
+        const incCrop = (i.cropKey || "").toLowerCase();
+        const targetCrop = cropKey.toLowerCase();
+        return (
+          incCrop === targetCrop ||
+          incCrop.includes(targetCrop) ||
+          targetCrop.includes(incCrop)
+        );
+      });
+      if (match) {
+        setSelectedIncidentId(match.id);
+      }
+    }
+  };
 
   const currentSelectedData = getIncidentData(selectedIncident);
   const totalReports = incidents.reduce((sum, item) => sum + item.reportsCount, 0);
@@ -833,32 +889,56 @@ export default function OutbreakRadar({
         </div>
       )}
 
-      {/* Crop Filter Pills */}
+      {/* Dynamic Crop Filter Pills */}
       <div className="bg-white rounded-2xl p-3 border border-slate-200 shadow-sm flex items-center space-x-2 overflow-x-auto">
         <Filter className="w-4 h-4 text-slate-400 ml-1 shrink-0" />
         <span className="text-xs font-semibold text-slate-500 shrink-0">
           {t("filterLabel")}
         </span>
-        {[
-          { key: "All", label: t("all") },
-          { key: "Tomato", label: t("tomato") },
-          { key: "Chili", label: t("chili") },
-          { key: "Paddy", label: t("paddy") },
-          { key: "Wheat", label: t("wheat") },
-          { key: "Cotton", label: t("cotton") },
-        ].map((item) => (
-          <button
-            key={item.key}
-            onClick={() => setSelectedCrop(item.key)}
-            className={`text-xs px-3 py-1.5 rounded-xl font-semibold transition shrink-0 ${
-              selectedCrop === item.key
-                ? "bg-emerald-600 text-white shadow-xs"
-                : "bg-slate-100 hover:bg-slate-200 text-slate-700"
-            }`}
-          >
-            {item.label}
-          </button>
-        ))}
+        {availableCrops.map((cropKey) => {
+          const lowerKey = cropKey.toLowerCase();
+          const label =
+            lowerKey === "all"
+              ? t("all")
+              : t(lowerKey) !== lowerKey
+              ? t(lowerKey)
+              : cropKey;
+          const isSelected = selectedCrop.toLowerCase() === cropKey.toLowerCase();
+          const matchCount =
+            cropKey === "All"
+              ? incidents.length
+              : incidents.filter((i) => {
+                  const incCrop = (i.cropKey || "").toLowerCase();
+                  return (
+                    incCrop === lowerKey ||
+                    incCrop.includes(lowerKey) ||
+                    lowerKey.includes(incCrop)
+                  );
+                }).length;
+
+          return (
+            <button
+              key={cropKey}
+              onClick={() => handleSelectCropFilter(cropKey)}
+              className={`text-xs px-3 py-1.5 rounded-xl font-semibold transition shrink-0 flex items-center gap-1.5 ${
+                isSelected
+                  ? "bg-emerald-600 text-white shadow-xs"
+                  : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+              }`}
+            >
+              <span>{label}</span>
+              <span
+                className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                  isSelected
+                    ? "bg-emerald-700 text-emerald-100"
+                    : "bg-slate-200 text-slate-600"
+                }`}
+              >
+                {matchCount}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* 2-Column Responsive Layout */}
@@ -870,7 +950,21 @@ export default function OutbreakRadar({
             {t("activeOutbreaks")} ({filteredIncidents.length})
           </h3>
 
-          {filteredIncidents.map((incident) => {
+          {filteredIncidents.length === 0 ? (
+            <div className="bg-white rounded-2xl p-8 border border-slate-200 text-center space-y-2.5 shadow-xs">
+              <CheckCircle className="w-8 h-8 text-emerald-500 mx-auto" />
+              <p className="text-xs sm:text-sm font-bold text-slate-700">
+                {t("noOutbreaks")}
+              </p>
+              <button
+                onClick={() => handleSelectCropFilter("All")}
+                className="text-xs text-emerald-700 font-extrabold hover:underline"
+              >
+                {t("all")} ({incidents.length}) →
+              </button>
+            </div>
+          ) : (
+            filteredIncidents.map((incident) => {
             const isSelected = selectedIncident?.id === incident.id;
             const itemData = getIncidentData(incident);
 
@@ -956,7 +1050,8 @@ export default function OutbreakRadar({
                 </div>
               </div>
             );
-          })}
+          })
+        )}
         </div>
 
         {/* Selected Incident Deep-Dive Advisory Card (lg:col-span-7) */}
